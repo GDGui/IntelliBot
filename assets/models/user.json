@@ -1,0 +1,18 @@
+{
+  "id": "55555555-5555-5555-5555-555555555555",
+  "name": "João Henrique",
+  "email": "admin@imageexpress.ai",
+  "roles": [
+    "clients",
+    "orders",
+    "integrations",
+    "products",
+    "agents",
+    "chat",
+    "logs"
+  ],
+  "active": true,
+  "created_at": "2023-11-01T09:30:00Z",
+  "updated_at": "2024-02-01T10:00:00Z",
+  "last_login_at": "2024-02-02T08:15:00Z"
+}

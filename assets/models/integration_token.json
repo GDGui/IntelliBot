@@ -1,0 +1,8 @@
+{
+  "id": "66666666-6666-6666-6666-666666666666",
+  "name": "ElevenLabs",
+  "provider": "elevenlabs",
+  "encrypted_value": "vault:v1:aes256_gcm:9f8d...",
+  "created_at": "2023-12-20T16:45:00Z",
+  "updated_at": "2024-01-05T11:10:00Z"
+}

@@ -1,0 +1,7 @@
+{
+  "customer_id": "11111111-1111-1111-1111-111111111111",
+  "name": "Maria Oliveira",
+  "email": "maria.oliveira@example.com",
+  "total_orders": 3,
+  "last_order_at": "2024-02-02T14:22:00Z"
+}
