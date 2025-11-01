@@ -23,7 +23,7 @@ Thumbs.db
 .vscode/
 
 # Supabase local
-supabase
+supabase/.
 supabase/.branches
 supabase/.temp
 supabase/.env
