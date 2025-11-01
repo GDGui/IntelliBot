@@ -23,11 +23,11 @@ Thumbs.db
 .vscode/
 
 # Supabase local
-supabase/.
-supabase/.branches
-supabase/.temp
-supabase/.env
-supabase/.snapshots
+./supabase/
+./supabase/.branches
+./supabase/.temp
+./supabase/.env
+./supabase/.snapshots
 
 # Logs
 *.log
