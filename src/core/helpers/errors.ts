@@ -1,137 +1,104 @@
 /**
- * @file Define o sistema de erros padronizados da aplicacao.
+ * Utilitarios de erros do core.
+ *
+ * Comentarios em PT-BR sem acentuacao.
  */
 
-/**
- * @interface AppError
- * @description Contrato para erros padronizados da aplicacao, garantindo
- * consistencia no tratamento de excecoes.
- *
- * @property {string} code - Codigo unico que identifica o tipo de erro (ex: 'USER_NOT_FOUND').
- * @property {string} message - Mensagem descritiva do erro, para fins de logging e debug.
- * @property {number} [status] - Codigo de status HTTP associado ao erro (ex: 404, 500).
- * @property {unknown} [cause] - A causa original do erro, util para rastrear a origem de excecoes.
- * @property {Record<string, unknown>} [details] - Objeto para informacoes adicionais e estruturadas sobre o erro.
- */
+/** Interface de erro padrao da aplicacao. */
 export interface AppError {
-	code: string;
-	message: string;
-	status?: number;
-	cause?: unknown;
-	details?: Record<string, unknown>;
+  code: string;
+  message: string;
+  status?: number;
+  cause?: unknown;
+  details?: unknown;
 }
 
-/**
- * @interface AppErrorOptions
- * @description Opcoes para a criacao de um AppError.
- *
- * @property {number} [status] - Codigo de status HTTP.
- * @property {unknown} [cause] - Causa original do erro.
- * @property {Record<string, unknown>} [details] - Detalhes adicionais.
- */
+/** Opcoes opcionais para criacao de AppError. */
 export interface AppErrorOptions {
-	status?: number;
-	cause?: unknown;
-	details?: Record<string, unknown>;
+  status?: number;
+  cause?: unknown;
+  details?: unknown;
 }
 
-/**
- * @interface NormalizeAppErrorOptions
- * @description Opcoes para a normalizacao de um erro, estendendo AppErrorOptions
- * com a possibilidade de sobrescrever codigo e mensagem.
- */
+/** Opcoes para normalizacao de erros desconhecidos. */
 export interface NormalizeAppErrorOptions extends AppErrorOptions {
-	code?: string;
-	message?: string;
+  code?: string;
+  message?: string;
 }
 
 /**
- * Cria um objeto de erro padronizado da aplicacao.
+ * Cria um AppError padrao com code e message.
  *
- * @param {string} code - O codigo unico para o erro.
- * @param {string} message - A mensagem descritiva do erro.
- * @param {AppErrorOptions} [options] - Opcoes adicionais como status, causa e detalhes.
- * @returns {AppError} O objeto de erro padronizado.
- *
- * @example
- * // Criar um erro simples
- * const meuErro = createAppError('VALIDATION_FAILED', 'Os dados fornecidos sao invalidos.');
- *
- * // Criar um erro com detalhes e status HTTP
- * const erroDetalhado = createAppError('USER_NOT_FOUND', 'Usuario nao encontrado.', {
- *   status: 404,
- *   details: { userId: '123' }
- * });
+ * Exemplo de uso:
+ * ```ts
+ * const err = createAppError(
+ *   "VALIDATION_ERROR",
+ *   "Campo obrigatorio ausente",
+ *   { status: 400, details: { field: "name" } },
+ * );
+ * ```
  */
 export function createAppError(
-	code: string,
-	message: string,
-	options?: AppErrorOptions,
+  code: string,
+  message: string,
+  options?: AppErrorOptions,
 ): AppError {
-	return {
-		code,
-		message,
-		...options,
-	};
+  return {
+    code,
+    message,
+    status: options?.status,
+    details: options?.details,
+    cause: options?.cause,
+  };
 }
 
 /**
- * Verifica se um valor é um AppError.
+ * Type guard para verificar se o valor e um AppError.
  *
- * @param {unknown} value - O valor a ser verificado.
- * @returns {value is AppError} Verdadeiro se o valor se conformar a interface AppError.
- *
- * @example
- * if (isAppError(caughtError)) {
- *   console.error(caughtError.code, caughtError.message);
+ * Exemplo de uso:
+ * ```ts
+ * const maybeErr: unknown = getSomething();
+ * if (isAppError(maybeErr)) {
+ *   console.log(maybeErr.code);
  * }
+ * ```
  */
-export function isAppError(value: unknown): value is AppError {
-	return (
-		typeof value === 'object' &&
-		value !== null &&
-		'code' in value &&
-		'message' in value
-	);
+export function isAppError(input: unknown): input is AppError {
+  if (typeof input !== "object" || input === null) return false;
+  const obj = input as Record<string, unknown>;
+  return typeof obj.code === "string" && typeof obj.message === "string";
 }
 
 /**
- * Normaliza um valor desconhecido para um formato AppError.
- * Se o valor ja for um AppError, ele e retornado. Caso contrario,
- * um novo AppError e criado com base no valor e nas opcoes fornecidas.
+ * Normaliza um valor desconhecido para AppError.
+ * - Se ja for AppError, retorna o proprio valor.
+ * - Caso contrario, cria AppError com defaults e preserva status/details e causa.
  *
- * @param {unknown} input - O valor a ser normalizado.
- * @param {NormalizeAppErrorOptions} [options] - Opcoes para a criacao do novo AppError,
- * caso o input nao seja um.
- * @returns {AppError} O erro normalizado.
- *
- * @example
+ * Exemplo de uso:
+ * ```ts
  * try {
- *   // algum codigo que pode falhar
- * } catch (error) {
- *   const appError = normalizeAppError(error, {
- *     code: 'UNEXPECTED_PAYMENT_ERROR',
- *     message: 'Falha ao processar pagamento.',
- *     status: 500
+ *   doWork();
+ * } catch (e) {
+ *   const appErr = normalizeAppError(e, {
+ *     code: "UNKNOWN_ERROR",
+ *     message: "Erro nao tratado",
+ *     status: 500,
  *   });
- *   // usar appError
  * }
+ * ```
  */
 export function normalizeAppError(
-	input: unknown,
-	options?: NormalizeAppErrorOptions,
+  input: unknown,
+  options?: NormalizeAppErrorOptions,
 ): AppError {
-	if (isAppError(input)) {
-		return input;
-	}
+  if (isAppError(input)) return input;
 
-	return createAppError(
-		options?.code ?? 'UNKNOWN_ERROR',
-		options?.message ?? 'Erro nao tratado',
-		{
-			status: options?.status,
-			details: options?.details,
-			cause: input,
-		},
-	);
+  const code = options?.code ?? "UNKNOWN_ERROR";
+  const message = options?.message ?? "Erro nao tratado";
+  return createAppError(code, message, {
+    status: options?.status,
+    details: options?.details,
+    cause: input,
+  });
 }
+

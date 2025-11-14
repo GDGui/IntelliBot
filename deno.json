@@ -1,5 +1,5 @@
 {
   "tasks": {
-    "products": "deno run --allow-env --allow-net --allow-read --allow-run ./src/api/products/task.ts"
+    "products": "deno run --allow-env --allow-net --allow-read --allow-run --env-file=.env ./src/api/products/task.ts"
   }
 }

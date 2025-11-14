@@ -1,12 +1,13 @@
-// src/core/infra/supabase/index.ts
+// Barrel do pacote de supabase - centraliza exportacoes
 
-/**
- * Centraliza as exportacoes do modulo Supabase.
- */
+export type { SupabaseConfig } from "../../infra/supabase/supabase_config.ts";
 
-export type { SupabaseConfig } from "./supabase_config.ts";
 export {
   loadSupabaseConfigFromEnv,
   SupabaseClientFactory,
-} from "./supabase_client.ts";
-export type { SupabaseClientProvider } from "./supabase_client.ts";
+  selectAccessKey,
+  readEnv,
+} from "../../infra/supabase/supabase_client.ts";
+
+export type { SupabaseClientProvider } from "../../infra/supabase/supabase_client.ts";
+

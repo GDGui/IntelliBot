@@ -1,50 +1,68 @@
-// src/core/logger/log.console.ts
-
-import { result, Result } from "../helpers/result.ts";
-import { AppError, createAppError } from "../helpers/errors.ts";
-import { LogEntry, Logger } from "./logger.types.ts";
-
 /**
- * @interface ConsoleLoggerOptions
- * @description Opcoes para o logger de console.
- * 
- * @property {boolean} [pretty] - Formata o log de forma mais legivel.
+ * Implementacao de logger via console.
+ *
+ * Comentarios em PT-BR sem acentuacao.
  */
+
+import { createAppError, result } from "../helpers/index.ts";
+import type { AppError } from "../helpers/index.ts";
+import type { LogEntry, LogLevel, Logger } from "./logger.types.ts";
+
+/** Opcoes para o logger de console. */
 export interface ConsoleLoggerOptions {
-  pretty?: boolean;
+  /**
+   * Funcao que formata a mensagem principal do log.
+   * Recebe a entrada completa e retorna uma string para exibicao.
+   */
+  formatter?: (entry: LogEntry) => string;
+}
+
+/** Formatter padrao para o console logger. */
+function defaultFormatter(entry: LogEntry): string {
+  const lvl = entry.level.toUpperCase();
+  const base = `[${lvl}] ${entry.message}`;
+  return base;
 }
 
 /**
- * @function createConsoleLogger
- * @description Cria um logger que imprime no console.
- * 
- * @param {ConsoleLoggerOptions} [options] - Opcoes para o logger.
- * @returns {Logger} - Uma instancia de Logger.
- * 
- * @example
- * const logger = createConsoleLogger({ pretty: true });
- * logger.log({ level: "info", message: "Teste" });
+ * Cria um Logger que escreve no console.
+ *
+ * Exemplo de uso:
+ * ```ts
+ * const logger = createConsoleLogger();
+ * logger.log({ level: "info", message: "Aplicacao iniciada" });
+ * ```
  */
-export function createConsoleLogger(options?: ConsoleLoggerOptions): Logger {
-  const log = (entry: LogEntry): Result<void, AppError> => {
-    try {
-      const { level, message, metadata, error } = entry;
-      const timestamp = new Date().toISOString();
-      const logMessage = options?.pretty
-        ? `[${timestamp}] [${level.toUpperCase()}] ${message}`
-        : JSON.stringify({ timestamp, level, message, metadata, error });
+export function createConsoleLogger(
+  options?: ConsoleLoggerOptions,
+): Logger {
+  const fmt = options?.formatter ?? defaultFormatter;
 
-      if (level === "error") {
-        console.error(logMessage, metadata, error);
-      } else {
-        console.log(logMessage, metadata || "");
-      }
-
-      return result.Success(undefined).unwrap();
-    } catch (e) {
-      return result.Error(createAppError("CONSOLE_LOGGER_ERROR", e.message, { cause: e })).unwrap();
-    }
+  const write = (level: LogLevel, msg: string, extra?: unknown[]) => {
+    if (level === "error") return console.error(msg, ...(extra ?? []));
+    if (level === "warn") return console.warn(msg, ...(extra ?? []));
+    if (level === "debug") return console.debug(msg, ...(extra ?? []));
+    return console.log(msg, ...(extra ?? []));
   };
 
-  return { log };
+  return {
+    log(entry: LogEntry) {
+      try {
+        const message = fmt(entry);
+        const extras: unknown[] = [];
+        if (entry.metadata !== undefined) extras.push(entry.metadata);
+        if (entry.error !== undefined) extras.push(entry.error);
+        write(entry.level, message, extras);
+        return result.Success<void, AppError>(undefined).unwrap();
+      } catch (e) {
+        return result.Error<void, AppError>(
+          createAppError(
+            "LOGGER_CONSOLE_FAILURE",
+            "Falha ao registrar log no console",
+            { cause: e },
+          ),
+        ).unwrap();
+      }
+    },
+  };
 }

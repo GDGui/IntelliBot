@@ -1,0 +1,13 @@
+{ 
+    "id": "00000000-0000-0000-0000-000000000000",
+    "title": "nome do produto",
+    "description": "campo para descrever o produto",
+    "prince_cents": 0.0,
+    "image_url": "https://url_da_imagem_no_storage",
+    "active": true,
+    "created_at": "timestamp_da_criacao",
+    "updated_at": "timestamp_do_update"
+  }
+
+
+

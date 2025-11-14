@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Script central de deploy/migrations por modulo
+# Uso: ./deploy.script <modulo> [--deploy|--migrations]
+
+MODULE=${1:-}
+FLAG=${2:-}
+
+if [[ -z "$MODULE" ]]; then
+  echo "Uso: $0 <modulo> [--deploy|--migrations]" >&2
+  exit 2
+fi
+
+echo "[deploy.script] modulo=$MODULE flag=$FLAG"
+
+# Basico: fmt/lint/check nos arquivos principais do modulo
+deno fmt --check src/api/$MODULE || true
+deno lint src/api/$MODULE || true
+deno check src/api/$MODULE/index.ts || true
+deno check src/api/$MODULE/task.ts || true
+
+# Copia migration mais recente
+LATEST_MIG=$(ls -1 src/api/$MODULE/migrations/*.sql 2>/dev/null | sort | tail -n 1 || true)
+if [[ -n "$LATEST_MIG" ]]; then
+  TS=$(date +%s)
+  mkdir -p supabase/migrations
+  cp "$LATEST_MIG" "supabase/migrations/${TS}__${MODULE}.sql"
+  echo "[deploy.script] migration copiada: $LATEST_MIG -> supabase/migrations/${TS}__${MODULE}.sql"
+else
+  echo "[deploy.script] nenhuma migration encontrada em src/api/$MODULE/migrations" >&2
+fi
+
+if [[ "$FLAG" == "--migrations" ]]; then
+  echo "[deploy.script] (stub) aplicando migrations via supabase CLI"
+  echo "[deploy.script] finalize: --migrations"
+  exit 0
+fi
+
+if [[ "$FLAG" == "--deploy" ]]; then
+  echo "[deploy.script] (stub) gerando function e realizando deploy via supabase CLI"
+  echo "[deploy.script] finalize: --deploy"
+  exit 0
+fi
+
+echo "[deploy.script] nenhum flag passado; nada a fazer"
+

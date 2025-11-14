@@ -1,43 +1,40 @@
-// src/core/logger/log.remote.ts
-
-import { result, Result } from "../helpers/result.ts";
-import { AppError, createAppError } from "../helpers/errors.ts";
-import { LogEntry, Logger } from "./logger.types.ts";
-
 /**
- * @interface RemoteLoggerOptions
- * @description Opcoes para o logger remoto.
- * 
- * @property {string} apiUrl - A URL da API de logging.
- * @property {string} apiKey - A chave de API para autenticacao.
+ * Implementacao stub de logger remoto.
+ *
+ * Comentarios em PT-BR sem acentuacao.
  */
+
+import { createAppError, result } from "../helpers/index.ts";
+import type { AppError } from "../helpers/index.ts";
+import type { Logger, LogEntry } from "./logger.types.ts";
+
+/** Opcoes para o logger remoto (stub). */
 export interface RemoteLoggerOptions {
-  apiUrl: string;
-  apiKey: string;
+  endpoint?: string;
+  token?: string;
+  timeoutMs?: number;
 }
 
 /**
- * @function createRemoteLogger
- * @description Cria um logger que envia logs para um servico remoto.
- * 
- * @param {RemoteLoggerOptions} options - Opcoes para o logger.
- * @returns {Logger} - Uma instancia de Logger.
- * 
- * @example
- * const logger = createRemoteLogger({ apiUrl: "...", apiKey: "..." });
- * logger.log({ level: "info", message: "Teste" });
+ * Cria um Logger remoto (ainda nao implementado).
+ * Sempre retorna erro "LOGGER_REMOTE_NOT_IMPLEMENTED".
+ *
+ * Exemplo de uso:
+ * ```ts
+ * const logger = createRemoteLogger();
+ * const r = logger.log({ level: "info", message: "Teste" });
+ * // r.isError() === true
+ * ```
  */
-export function createRemoteLogger(options: RemoteLoggerOptions): Logger {
-  const log = (entry: LogEntry): Result<void, AppError> => {
-    // TODO: Implement remote logging
-    return result.Error(
-      createAppError(
-        "LOGGER_REMOTE_NOT_IMPLEMENTED",
-        "Remote logger is not implemented yet.",
-        { details: { entry, options } }
-      )
-    ).unwrap();
+export function createRemoteLogger(_options?: RemoteLoggerOptions): Logger {
+  return {
+    log(_entry: LogEntry) {
+      return result.Error<void, AppError>(
+        createAppError(
+          "LOGGER_REMOTE_NOT_IMPLEMENTED",
+          "Logger remoto nao implementado",
+        ),
+      ).unwrap();
+    },
   };
-
-  return { log };
 }

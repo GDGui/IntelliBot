@@ -1,50 +1,36 @@
-// src/core/logger/logger.types.ts
-
-import { Result } from "../helpers/result.ts";
-import { AppError } from "../helpers/errors.ts";
-
 /**
- * @enum LogLevel
- * @description Define os niveis de log disponiveis na aplicacao.
- * 
- * @example
- * const level: LogLevel = "info";
+ * Tipos base do modulo de logger.
+ *
+ * Comentarios em PT-BR sem acentuacao.
  */
+
+import type { Result } from "../helpers/index.ts";
+import type { AppError } from "../helpers/index.ts";
+
+/** Niveis de log suportados. */
 export type LogLevel = "info" | "error" | "warn" | "debug";
 
-/**
- * @interface LogEntry
- * @description Representa uma entrada de log.
- * 
- * @property {LogLevel} level - O nivel do log.
- * @property {string} message - A mensagem de log.
- * @property {unknown} [metadata] - Dados adicionais para o log.
- * @property {Error} [error] - Um objeto de erro associado ao log.
- * 
- * @example
- * const entry: LogEntry = {
- *   level: "info",
- *   message: "Usuario logado com sucesso",
- *   metadata: { userId: 123 },
- * };
- */
+/** Estrutura de uma entrada de log. */
 export interface LogEntry {
   level: LogLevel;
   message: string;
-  metadata?: unknown;
-  error?: Error;
+  metadata?: Record<string, unknown>;
+  error?: unknown;
 }
 
-/**
- * @interface Logger
- * @description Define a interface para um logger.
- * 
- * @method log - Registra uma entrada de log.
- * 
- * @example
- * const logger: Logger = createConsoleLogger();
- * logger.log({ level: "info", message: "Teste" });
- */
+/** Interface padrao de Logger. */
 export interface Logger {
+  /**
+   * Registra uma entrada de log e retorna Result sem lancar excecao.
+   *
+   * Exemplo de uso:
+   * ```ts
+   * const res = logger.log({ level: "info", message: "Iniciando" });
+   * if (res.isError()) {
+   *   // tratar falha de log
+   * }
+   * ```
+   */
   log(entry: LogEntry): Result<void, AppError>;
 }
+

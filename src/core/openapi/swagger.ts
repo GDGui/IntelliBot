@@ -17,18 +17,18 @@ export const createSwaggerDocs = (options: SwaggerDocsOptions) =>
   <head>
     <meta charset="utf-8" />
     <title>${options.title}</title>
-    ${ 
-      asset.css.map((href) => 
+    ${
+      asset.css.map((href) =>
         `<link rel="stylesheet" type="text/css" href="${href}" />`
-      ).join("\n    ") 
+      ).join("\n    ")
     }
   </head>
   <body>
     <div id="swagger-ui"></div>
-    ${ 
-      asset.js.map((src) => 
+    ${
+      asset.js.map((src) =>
         `<script src="${src}" crossorigin="anonymous"></script>`
-      ).join("\n    ") 
+      ).join("\n    ")
     }
     <script>
       window.onload = () => {
@@ -39,6 +39,6 @@ export const createSwaggerDocs = (options: SwaggerDocsOptions) =>
       };
     </script>
   </body>
-</html>
+  </html>
     `,
   });

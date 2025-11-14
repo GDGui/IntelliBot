@@ -1,147 +1,214 @@
-// src/core/infra/http/http.client.ts
-
-import { result, Result } from "../../helpers/result.ts";
-import { AppError, createAppError } from "../../helpers/errors.ts";
-
-// Tipos e Interfaces
-
 /**
- * @enum HttpMethod
- * @description Metodos HTTP suportados.
+ * Cliente HTTP generico baseado em fetch.
+ *
+ * Comentarios em PT-BR sem acentuacao.
  */
+
+import { createAppError, result } from "../../helpers/index.ts";
+import type { AppError, Result } from "../../helpers/index.ts";
+
+/** Metodos HTTP suportados. */
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-/**
- * @interface HttpRequest
- * @description Representa uma requisicao HTTP.
- * 
- * @property {string} url - A URL da requisicao.
- * @property {HttpMethod} method - O metodo HTTP.
- * @property {Record<string, string>} [headers] - Cabecalhos da requisicao.
- * @property {unknown} [body] - Corpo da requisicao.
- * @property {Record<string, string>} [params] - Parametros de query.
- */
+/** Opcoes de autenticacao suportadas. */
+export type AuthOptions = { type: "bearer"; token: string };
+
+/** Requisicao HTTP padrao. */
 export interface HttpRequest {
-  url: string;
+  url?: string; // url completa (sobrepoe baseUrl + path)
+  path?: string; // path relativo a baseUrl
+  query?: Record<string, string | number | boolean | undefined | null>;
   method: HttpMethod;
-  headers?: Record<string, string>;
+  headers?: HeadersInit;
   body?: unknown;
-  params?: Record<string, string>;
 }
 
-/**
- * @interface HttpResponse
- * @description Representa uma resposta HTTP.
- * 
- * @property {T} data - Os dados da resposta.
- * @property {number} status - O status da resposta.
- * @property {Record<string, string>} headers - Cabecalhos da resposta.
- */
-export interface HttpResponse<T> {
-  data: T;
+/** Resposta HTTP parseada. */
+export interface HttpResponse<T = unknown> {
   status: number;
   headers: Record<string, string>;
+  data: T | undefined;
+  raw: string | undefined;
 }
 
-/**
- * @interface AuthOptions
- * @description Opcoes de autenticacao.
- * 
- * @property {"bearer"} type - O tipo de autenticacao.
- * @property {string} token - O token de autenticacao.
- */
-export interface AuthOptions {
-  type: "bearer";
-  token: string;
-}
-
-/**
- * @interface HttpClient
- * @description Define a interface para um cliente HTTP.
- */
+/** Interface do cliente HTTP. */
 export interface HttpClient {
-  request<T>(req: HttpRequest): Promise<Result<HttpResponse<T>, AppError>>;
-  get<T>(url: string, params?: Record<string, string>, headers?: Record<string, string>): Promise<Result<HttpResponse<T>, AppError>>;
-  post<T>(url: string, body: unknown, headers?: Record<string, string>): Promise<Result<HttpResponse<T>, AppError>>;
-  put<T>(url: string, body: unknown, headers?: Record<string, string>): Promise<Result<HttpResponse<T>, AppError>>;
-  patch<T>(url: string, body: unknown, headers?: Record<string, string>): Promise<Result<HttpResponse<T>, AppError>>;
-  delete<T>(url: string, headers?: Record<string, string>): Promise<Result<HttpResponse<T>, AppError>>;
-  authenticate(options: AuthOptions): void;
+  request<T = unknown>(req: HttpRequest): Promise<Result<HttpResponse<T>, AppError>>;
+  get<T = unknown>(pathOrUrl: string, query?: HttpRequest["query"], headers?: HeadersInit): Promise<Result<HttpResponse<T>, AppError>>;
+  post<T = unknown>(pathOrUrl: string, body?: unknown, headers?: HeadersInit): Promise<Result<HttpResponse<T>, AppError>>;
+  put<T = unknown>(pathOrUrl: string, body?: unknown, headers?: HeadersInit): Promise<Result<HttpResponse<T>, AppError>>;
+  patch<T = unknown>(pathOrUrl: string, body?: unknown, headers?: HeadersInit): Promise<Result<HttpResponse<T>, AppError>>;
+  delete<T = unknown>(pathOrUrl: string, headers?: HeadersInit): Promise<Result<HttpResponse<T>, AppError>>;
+  authenticate(auth: AuthOptions): HttpClient;
 }
 
-// Helpers
-
-function buildUrl(url: string, params?: Record<string, string>): string {
-  if (!params) return url;
-  const urlParams = new URLSearchParams(params);
-  return `${url}?${urlParams.toString()}`;
+/** Opcoes para criar o cliente HTTP. */
+export interface HttpClientOptions {
+  baseUrl?: string;
+  headers?: HeadersInit;
+  auth?: AuthOptions;
+  fetchImpl?: typeof fetch;
 }
-
-function parseBody(body?: unknown): BodyInit | null {
-  if (!body) return null;
-  if (typeof body === "string") return body;
-  return JSON.stringify(body);
-}
-
-function buildAuthHeader(authOptions?: AuthOptions): Record<string, string> {
-  if (!authOptions) return {};
-  return { Authorization: `Bearer ${authOptions.token}` };
-}
-
-// HttpClient
 
 /**
- * @function createHttpClient
- * @description Cria um cliente HTTP.
- * @returns {HttpClient} - Uma instancia de HttpClient.
+ * Cria um cliente HTTP com baseUrl/headers/auth opcionais.
+ *
+ * Exemplo de uso:
+ * ```ts
+ * const client = createHttpClient({ baseUrl: "https://api.exemplo.com", auth: { type: "bearer", token: "x" } });
+ * const r = await client.get("/users");
+ * if (r.isSuccess()) {
+ *   console.log(r.SuccessValue().data);
+ * }
+ * ```
  */
-export function createHttpClient(): HttpClient {
-  let authOptions: AuthOptions | undefined;
+export function createHttpClient(options?: HttpClientOptions): HttpClient {
+  const baseUrl = options?.baseUrl?.replace(/\/$/, "");
+  const baseHeaders = normalizeHeaders(options?.headers);
+  const auth = options?.auth;
+  const $fetch = options?.fetchImpl ?? fetch;
 
-  async function request<T>(req: HttpRequest): Promise<Result<HttpResponse<T>, AppError>> {
+  async function doRequest<T = unknown>(req: HttpRequest): Promise<Result<HttpResponse<T>, AppError>> {
     try {
-      const url = buildUrl(req.url, req.params);
-      const body = parseBody(req.body);
-      const authHeader = buildAuthHeader(authOptions);
-      const headers = { "Content-Type": "application/json", ...authHeader, ...req.headers };
+      const url = buildUrl({ baseUrl, overrideUrl: req.url, path: req.path, query: req.query });
+      const headers = { ...baseHeaders, ...normalizeHeaders(req.headers), ...buildAuthBody(auth) } as HeadersInit;
 
-      const response = await fetch(url, {
+      const hasBody = req.body !== undefined && req.body !== null;
+      const finalInit: RequestInit = {
         method: req.method,
         headers,
-        body,
-      });
+        body: hasBody ? serializeBody(req.body, headers) : undefined,
+      };
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        return result.Error(createAppError("HTTP_ERROR", data.message || "Erro na requisicao HTTP", { status: response.status, details: data })).unwrap();
-      }
-
-      return result.Success({
-        data,
-        status: response.status,
-        headers: Object.fromEntries(response.headers.entries()),
-      }).unwrap();
-
+      const res = await $fetch(url, finalInit);
+      const parsed = await parseBody(res);
+      const response: HttpResponse<T> = {
+        status: res.status,
+        headers: headersToRecord(res.headers),
+        data: parsed.data as T,
+        raw: parsed.raw,
+      };
+      return result.Success<HttpResponse<T>, AppError>(response).unwrap();
     } catch (e) {
-      return result.Error(createAppError("HTTP_CLIENT_ERROR", e.message, { cause: e })).unwrap();
+      return result.Error<HttpResponse<T>, AppError>(
+        createAppError(
+          "HTTP_CLIENT_REQUEST_FAILED",
+          "Falha ao executar requisicao HTTP",
+          { cause: e },
+        ),
+      ).unwrap();
     }
   }
 
-  return {
-    request,
-    get: <T>(url: string, params?: Record<string, string>, headers?: Record<string, string>) =>
-      request<T>({ url, method: "GET", params, headers }),
-    post: <T>(url: string, body: unknown, headers?: Record<string, string>) =>
-      request<T>({ url, method: "POST", body, headers }),
-    put: <T>(url: string, body: unknown, headers?: Record<string, string>) =>
-      request<T>({ url, method: "PUT", body, headers }),
-    patch: <T>(url: string, body: unknown, headers?: Record<string, string>) =>
-      request<T>({ url, method: "PATCH", body, headers }),
-    delete: <T>(url: string, headers?: Record<string, string>) =>
-      request<T>({ url, method: "DELETE", headers }),
-    authenticate: (options: AuthOptions) => {
-      authOptions = options;
+  const client: HttpClient = {
+    request: doRequest,
+    get<T = unknown>(pathOrUrl: string, query?: HttpRequest["query"], headers?: HeadersInit) {
+      return doRequest<T>({ method: "GET", url: isAbsoluteUrl(pathOrUrl) ? pathOrUrl : undefined, path: isAbsoluteUrl(pathOrUrl) ? undefined : pathOrUrl, query, headers });
+    },
+    post<T = unknown>(pathOrUrl: string, body?: unknown, headers?: HeadersInit) {
+      return doRequest<T>({ method: "POST", url: isAbsoluteUrl(pathOrUrl) ? pathOrUrl : undefined, path: isAbsoluteUrl(pathOrUrl) ? undefined : pathOrUrl, body, headers });
+    },
+    put<T = unknown>(pathOrUrl: string, body?: unknown, headers?: HeadersInit) {
+      return doRequest<T>({ method: "PUT", url: isAbsoluteUrl(pathOrUrl) ? pathOrUrl : undefined, path: isAbsoluteUrl(pathOrUrl) ? undefined : pathOrUrl, body, headers });
+    },
+    patch<T = unknown>(pathOrUrl: string, body?: unknown, headers?: HeadersInit) {
+      return doRequest<T>({ method: "PATCH", url: isAbsoluteUrl(pathOrUrl) ? pathOrUrl : undefined, path: isAbsoluteUrl(pathOrUrl) ? undefined : pathOrUrl, body, headers });
+    },
+    delete<T = unknown>(pathOrUrl: string, headers?: HeadersInit) {
+      return doRequest<T>({ method: "DELETE", url: isAbsoluteUrl(pathOrUrl) ? pathOrUrl : undefined, path: isAbsoluteUrl(pathOrUrl) ? undefined : pathOrUrl, headers });
+    },
+    authenticate(nextAuth: AuthOptions): HttpClient {
+      return createHttpClient({ baseUrl, headers: baseHeaders, auth: nextAuth, fetchImpl: $fetch });
     },
   };
+
+  return client;
 }
+
+/** Helper: constroi URL a partir de base, path e query. */
+function buildUrl(input: {
+  baseUrl?: string;
+  overrideUrl?: string;
+  path?: string;
+  query?: HttpRequest["query"];
+}): string {
+  if (input.overrideUrl) return appendQuery(input.overrideUrl, input.query);
+  const base = input.baseUrl ?? "";
+  const path = (input.path ?? "").replace(/^\//, "");
+  const joined = path ? `${base}/${path}` : base;
+  return appendQuery(joined, input.query);
+}
+
+/** Helper: aplica querystring a uma URL. */
+function appendQuery(url: string, query?: HttpRequest["query"]): string {
+  if (!query) return url;
+  const u = new URL(url, isAbsoluteUrl(url) ? undefined : "http://local");
+  Object.entries(query).forEach(([k, v]) => {
+    if (v === undefined || v === null) return;
+    u.searchParams.set(k, String(v));
+  });
+  // Se era absoluta, retorna href; se era relativa, retorna pathname+search
+  if (isAbsoluteUrl(url)) return u.href;
+  const qs = u.search ? u.search : "";
+  const path = u.pathname.startsWith("/") ? u.pathname.substring(1) : u.pathname;
+  return qs ? `${path}${qs}` : path;
+}
+
+/** Helper: converte Headers em Record. */
+function headersToRecord(h: Headers): Record<string, string> {
+  const out: Record<string, string> = {};
+  h.forEach((val, key) => { out[key] = val; });
+  return out;
+}
+
+/** Helper: normaliza headers em Record<string,string>. */
+function normalizeHeaders(h?: HeadersInit): Record<string, string> {
+  if (!h) return {};
+  if (Array.isArray(h)) {
+    return Object.fromEntries(h);
+  }
+  if (h instanceof Headers) {
+    return headersToRecord(h);
+  }
+  return { ...h } as Record<string, string>;
+}
+
+/** Helper: retorna headers de autenticacao de acordo com AuthOptions. */
+function buildAuthBody(auth?: AuthOptions): Record<string, string> {
+  if (!auth) return {};
+  if (auth.type === "bearer") return { Authorization: `Bearer ${auth.token}` };
+  return {};
+}
+
+/** Helper: decide content-type e serializa corpo para RequestInit.body. */
+function serializeBody(body: unknown, headers: HeadersInit): BodyInit {
+  const map = normalizeHeaders(headers);
+  const ct = map["content-type"] ?? map["Content-Type"];
+  if (ct && ct.toLowerCase().includes("application/json")) {
+    return JSON.stringify(body ?? {});
+  }
+  if (typeof body === "string") return body;
+  // fallback: JSON
+  return JSON.stringify(body ?? {});
+}
+
+/** Helper: parseia corpo da resposta respeitando content-type. */
+async function parseBody(res: Response): Promise<{ data: unknown; raw: string | undefined }> {
+  const ct = res.headers.get("content-type")?.toLowerCase() ?? "";
+  try {
+    if (ct.includes("application/json")) {
+      const data = await res.json();
+      return { data, raw: undefined };
+    }
+    const text = await res.text();
+    return { data: undefined, raw: text };
+  } catch (_e) {
+    return { data: undefined, raw: undefined };
+  }
+}
+
+/** Helper: verifica se URL e absoluta. */
+function isAbsoluteUrl(u: string): boolean {
+  return /^https?:\/\//i.test(u);
+}
+

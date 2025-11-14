@@ -1,82 +1,100 @@
-// src/core/logger/logger.middleware.ts
-
-import { MiddlewareHandler } from "../../deps.ts";
-import { Result } from "../helpers/result.ts";
-import { createConsoleLogger } from "./log.console.ts";
-import { createRemoteLogger } from "./log.remote.ts";
-import { Logger } from "./logger.types.ts";
-import { nodeProcess } from "../../deps.ts";
-
 /**
- * @interface LoggerMiddlewareOptions
- * @description Opcoes para o middleware de logger.
- * 
- * @property {boolean} [pretty] - Formata o log de forma mais legivel (apenas para console logger).
+ * Middleware e factory de logger.
+ *
+ * Comentarios em PT-BR sem acentuacao.
  */
-export interface LoggerMiddlewareOptions {
-  pretty?: boolean;
+
+import { nodeProcess, type Context, type MiddlewareHandler } from "../../deps.ts";
+import { result } from "../helpers/index.ts";
+import type { Logger } from "./logger.types.ts";
+import { createConsoleLogger, type ConsoleLoggerOptions } from "./log.console.ts";
+import { createRemoteLogger, type RemoteLoggerOptions } from "./log.remote.ts";
+
+/** Opcoes para criar logger via factory. */
+export interface CreateLoggerOptions {
+  env?: string;
+  console?: ConsoleLoggerOptions;
+  remote?: RemoteLoggerOptions;
 }
 
 /**
- * @function createLogger
- * @description Cria uma instancia de logger com base no ambiente.
- * 
- * @param {LoggerMiddlewareOptions} [options] - Opcoes para o logger.
- * @returns {Logger} - Uma instancia de Logger.
+ * Seleciona o logger com base no ambiente.
+ * - local, development, test -> console
+ * - demais -> remoto (stub)
+ *
+ * Exemplo de uso:
+ * ```ts
+ * const logger = createLogger({ env: "development" });
+ * ```
  */
-export function createLogger(options?: LoggerMiddlewareOptions): Logger {
-  const loggerEnv = nodeProcess.env.LOGGER_ENV || nodeProcess.env.NODE_ENV;
+export function createLogger(options?: CreateLoggerOptions): Logger {
+  const env = (options?.env
+    ?? nodeProcess?.env?.LOGGER_ENV
+    ?? nodeProcess?.env?.NODE_ENV
+    ?? "development").toString().toLowerCase();
 
-  switch (loggerEnv) {
-    case "local":
-    case "development":
-    case "test":
-      return createConsoleLogger({ pretty: options?.pretty });
-    default:
-      // TODO: Get apiUrl and apiKey from env
-      return createRemoteLogger({ apiUrl: "", apiKey: "" });
-  }
+  const localLike = ["local", "development", "test"];
+  if (localLike.includes(env)) return createConsoleLogger(options?.console);
+  return createRemoteLogger(options?.remote);
 }
 
+/** Opcoes do middleware de logger. */
+export interface LoggerMiddlewareOptions extends CreateLoggerOptions {}
+
 /**
- * @function createLoggerMiddleware
- * @description Cria um middleware de logger para o Hono.
- * 
- * @param {LoggerMiddlewareOptions} [options] - Opcoes para o middleware.
- * @returns {MiddlewareHandler} - Um middleware do Hono.
- * 
- * @example
+ * Cria middleware que registra inicio/sucesso/erro por request.
+ * Usa result.from para tratar retorno do logger sem interromper o fluxo.
+ *
+ * Exemplo de uso:
+ * ```ts
+ * import { Hono } from "../../deps.ts";
+ * import { createLoggerMiddleware } from "./logger.middleware.ts";
  * const app = new Hono();
- * app.use('*', createLoggerMiddleware({ pretty: true }));
+ * app.use("*", createLoggerMiddleware());
+ * ```
  */
-export function createLoggerMiddleware(options?: LoggerMiddlewareOptions): MiddlewareHandler {
+export function createLoggerMiddleware(
+  options?: LoggerMiddlewareOptions,
+): MiddlewareHandler {
   const logger = createLogger(options);
 
-  return async (c, next) => {
-    const start = Date.now();
-    logger.log({
+  return async (c: Context, next) => {
+    const startedAt = Date.now();
+    const method = c.req.method;
+    // Extrai pathname de forma segura
+    let path: string;
+    try {
+      path = new URL(c.req.url).pathname;
+    } catch {
+      path = c.req.url;
+    }
+
+    // log de inicio
+    result.from(logger.log({
       level: "info",
-      message: `Request started: ${c.req.method} ${c.req.url}`,
-      metadata: {
-        method: c.req.method,
-        url: c.req.url,
-      },
-    });
+      message: "HTTP START",
+      metadata: { method, path },
+    }));
 
-    await next();
-
-    const ms = Date.now() - start;
-    const result = c.res.status < 400 ? "Success" : "Error";
-
-    logger.log({
-      level: result === "Success" ? "info" : "error",
-      message: `Request finished in ${ms}ms with status ${c.res.status}`,
-      metadata: {
-        method: c.req.method,
-        url: c.req.url,
-        status: c.res.status,
-        duration: ms,
-      },
-    });
+    try {
+      await next();
+      const status = c.res?.status ?? 200;
+      const durationMs = Date.now() - startedAt;
+      result.from(logger.log({
+        level: "info",
+        message: "HTTP SUCCESS",
+        metadata: { method, path, status, durationMs },
+      }));
+    } catch (err) {
+      const status = c.res?.status ?? 500;
+      const durationMs = Date.now() - startedAt;
+      result.from(logger.log({
+        level: "error",
+        message: "HTTP ERROR",
+        metadata: { method, path, status, durationMs },
+        error: err,
+      }));
+      throw err;
+    }
   };
 }

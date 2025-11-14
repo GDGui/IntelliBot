@@ -1,0 +1,195 @@
+{
+  "info": {
+    "name": "Mentoria AI — Products API",
+    "description": "Coleção Postman para o módulo Products.\n\nOverview:\n- Gerencia produtos com operações de listagem, criação, atualização, busca e desativação lógica.\n- Endpoints seguem padrão minimal API e retornam JSON.\n\nAutenticação:\n- Utilize o header Authorization via variável `{{authorization}}` (ex.: `Bearer <token>`).\n\nVariáveis:\n- `{{baseUrl}}`: URL base do módulo (local: http://localhost:8787).\n- `{{authorization}}`: valor do header Authorization.\n- `{{projectName}}`: nome amigável do projeto.\n\nObservações:\n- `DELETE /:id` realiza desativação lógica (`active=false`).\n- `GET /search/by-query` permite filtro genérico por coluna/valor, use com cautela.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8787", "type": "string" },
+    { "key": "authorization", "value": "Bearer <token>", "type": "string" },
+    { "key": "projectName", "value": "Mentoria AI", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Products",
+      "description": "Recursos do módulo Products.\n\nCampos principais:\n- id (uuid), title (string), description (string), price_cents (number), image_url (string), active (boolean), created_at/updated_at (ISO).\n\nUso:\n- Configure variáveis da collection.\n- Envie Authorization em todas as chamadas.\n- Em POST/PUT/PATCH, envie body JSON conforme os exemplos.",
+      "item": [
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "{{authorization}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""],
+              "query": []
+            },
+            "description": "Lista produtos ativos ordenados por `created_at` desc.\n\nResponses:\n- 200 OK: `[Product]`\n- 500 Error: `{ error: AppError }`"
+          }
+        },
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "{{authorization}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"nome do produto\",\n  \"description\": \"campo para descrever o produto\",\n  \"price_cents\": 1000,\n  \"image_url\": \"https://url_da_imagem_no_storage\",\n  \"active\": true\n}"
+            },
+            "description": "Cria um novo produto. Campos obrigatórios: `title`, `description`, `price_cents`, `image_url`.\n\nResponses:\n- 200 OK: `Product` criado\n- 400 Error: validação\n- 500 Error: `{ error: AppError }`"
+          }
+        },
+        {
+          "name": "Get Product By Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "{{authorization}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{id}}"],
+              "variable": [
+                { "key": "id", "value": "00000000-0000-0000-0000-000000000000", "description": "ID do produto" }
+              ]
+            },
+            "description": "Busca um produto pelo `id`.\n\nResponses:\n- 200 OK: `Product`\n- 404 Not Found\n- 500 Error: `{ error: AppError }`"
+          }
+        },
+        {
+          "name": "Search Products By Name",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "{{authorization}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/search/by-name?q={{q}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["search", "by-name"],
+              "query": [
+                { "key": "q", "value": "nome" }
+              ]
+            },
+            "description": "Busca produtos pelo campo `title` utilizando `ilike` (`%q%`).\n\nResponses:\n- 200 OK: `[Product]`\n- 500 Error: `{ error: AppError }`"
+          }
+        },
+        {
+          "name": "Search Products By Created At",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "{{authorization}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/search/by-created-at?date={{date}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["search", "by-created-at"],
+              "query": [
+                { "key": "date", "value": "2023-01-01T00:00:00.000Z" }
+              ]
+            },
+            "description": "Lista produtos criados a partir de `date` (ISO 8601).\n\nResponses:\n- 200 OK: `[Product]`\n- 500 Error: `{ error: AppError }`"
+          }
+        },
+        {
+          "name": "Search Products By Query",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "{{authorization}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/search/by-query?column={{column}}&value={{value}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["search", "by-query"],
+              "query": [
+                { "key": "column", "value": "title" },
+                { "key": "value", "value": "nome" }
+              ]
+            },
+            "description": "Filtro genérico por `column=value`. Utilize apenas colunas válidas.\n\nResponses:\n- 200 OK: `[Product]`\n- 400 Error: quando `column` não é informado\n- 500 Error: `{ error: AppError }`"
+          }
+        },
+        {
+          "name": "Update Product (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "{{authorization}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{id}}"],
+              "variable": [
+                { "key": "id", "value": "00000000-0000-0000-0000-000000000000", "description": "ID do produto" }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"nome do produto\",\n  \"description\": \"texto\",\n  \"price_cents\": 1200,\n  \"image_url\": \"https://url_da_imagem_no_storage\",\n  \"active\": true\n}"
+            },
+            "description": "Atualiza um produto por completo.\n\nResponses:\n- 200 OK: `Product` atualizado\n- 400/404/500 conforme regras."
+          }
+        },
+        {
+          "name": "Patch Product (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "{{authorization}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{id}}"],
+              "variable": [
+                { "key": "id", "value": "00000000-0000-0000-0000-000000000000", "description": "ID do produto" }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"novo nome opcional\"\n}"
+            },
+            "description": "Atualiza parcialmente campos do produto.\n\nResponses:\n- 200 OK: `Product` atualizado\n- 400/404/500 conforme regras."
+          }
+        },
+        {
+          "name": "Delete (Deactivate) Product",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "{{authorization}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["{{id}}"],
+              "variable": [
+                { "key": "id", "value": "00000000-0000-0000-0000-000000000000", "description": "ID do produto" }
+              ]
+            },
+            "description": "Desativa um produto (delete lógico: `active=false`).\n\nResponses:\n- 200 OK: `Product` atualizado\n- 404/500 conforme regras."
+          }
+        }
+      ]
+    }
+  ]
+}
+
